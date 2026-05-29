@@ -1,0 +1,18 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "raspberrypi,4-model-b", "brcm,bcm2711";
+};
+
+&spi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	num-cs = <1>;
+
+	ad5706r: dac@0 {
+		compatible = "adi,ad5706r";
+		reg = <0>;
+	};
+};
