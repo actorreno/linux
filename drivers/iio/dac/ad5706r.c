@@ -8,8 +8,12 @@
 #include <linux/iio/iio.h>
 #include <linux/module.h>
 #include <linux/spi/spi.h>
+#include <linux/regmap.h>
+
+#define AD5706R_REG_DAC_DATA_READBACK_CH	0x69
 
 struct ad5706r_state {
+	struct regmap *regmap;
 	bool enable;
 };
 
@@ -18,10 +22,15 @@ static int ad5706r_read_raw(struct iio_dev *indio_dev,
 			    int *val, int *val2, long mask)
 {
 	struct ad5706r_state *st = iio_priv(indio_dev);
+	int reg, reg_val, ret;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		*val = chan->channel;
+		reg = AD5706R_REG_DAC_DATA_READBACK_CH + (chan->channel * 2);
+		ret = regmap_read(st->regmap, reg, &reg_val);
+		if (ret)
+			return ret;
+		*val = reg_val;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
 		*val = st->enable;
@@ -48,9 +57,27 @@ static int ad5706r_write_raw(struct iio_dev *indio_dev,
 	}
 }
 
+static const struct regmap_config ad5706r_regmap_config = {
+	.reg_bits = 16,
+	.val_bits = 16,
+};
+
+static int ad5706r_reg_access(struct iio_dev *indio_dev,
+			      unsigned int reg, unsigned int writeval,
+			      unsigned int *readval)
+{
+	struct ad5706r_state *st = iio_priv(indio_dev);
+
+	if (readval)
+		return regmap_read(st->regmap, reg, readval);
+	
+	return regmap_write(st->regmap, reg, writeval);
+}
+
 static const struct iio_info ad5706r_info = {
 	.read_raw = ad5706r_read_raw,
 	.write_raw = ad5706r_write_raw,
+	.debugfs_reg_access = ad5706r_reg_access,
 };
 
 #define AD5706R_CHAN(_channel) {				\
@@ -80,6 +107,11 @@ static int ad5706r_probe(struct spi_device *spi)
 
 	st = iio_priv(indio_dev);
 	st->enable = false;
+
+	st->regmap = devm_regmap_init_spi(spi, &ad5706r_regmap_config);
+	if (IS_ERR(st->regmap))
+		return dev_err_probe(&spi->dev, PTR_ERR(st->regmap),
+				     "Failed to init regmap\n");
 
 	indio_dev->name = "ad5706r";
 	indio_dev->info = &ad5706r_info;
