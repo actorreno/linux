@@ -9,16 +9,22 @@
 #include <linux/module.h>
 #include <linux/spi/spi.h>
 
+struct ad5706r_state {
+	bool enable;
+};
+
 static int ad5706r_read_raw(struct iio_dev *indio_dev,
 			    struct iio_chan_spec const *chan,
 			    int *val, int *val2, long mask)
 {
+	struct ad5706r_state *st = iio_priv(indio_dev);
+
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		*val = chan->channel;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
-		*val = 1;
+		*val = st->enable;
 		return IIO_VAL_INT;
 	default:
 		return -EINVAL;
@@ -29,10 +35,13 @@ static int ad5706r_write_raw(struct iio_dev *indio_dev,
 			     struct iio_chan_spec const *chan,
 			     int val, int val2, long mask)
 {
+	struct ad5706r_state *st = iio_priv(indio_dev);
+
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		return 0;
 	case IIO_CHAN_INFO_ENABLE:
+		st->enable = val;
 		return 0;
 	default:
 		return -EINVAL;
@@ -63,10 +72,14 @@ static const struct iio_chan_spec ad5706r_channels[] = {
 static int ad5706r_probe(struct spi_device *spi)
 {
 	struct iio_dev *indio_dev;
+	struct ad5706r_state *st;
 
-	indio_dev = devm_iio_device_alloc(&spi->dev, 0);
+	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
 	if (!indio_dev)
 		return -ENOMEM;
+
+	st = iio_priv(indio_dev);
+	st->enable = false;
 
 	indio_dev->name = "ad5706r";
 	indio_dev->info = &ad5706r_info;
@@ -76,7 +89,6 @@ static int ad5706r_probe(struct spi_device *spi)
 
 	return devm_iio_device_register(&spi->dev, indio_dev);
 }
-
 
 static const struct of_device_id ad5706r_of_match[] = {
 	{ .compatible = "adi,ad5706r" },
