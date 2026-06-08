@@ -4,7 +4,8 @@
  *
  * Copyright 2026 Analog Devices Inc.
  */
-
+ 
+#include <linux/gpio/consumer.h>
 #include <linux/iio/iio.h>
 #include <linux/module.h>
 #include <linux/spi/spi.h>
@@ -14,6 +15,8 @@
 
 struct ad5706r_state {
 	struct regmap *regmap;
+	struct gpio_desc *en_gpio;
+
 	bool enable;
 };
 
@@ -33,7 +36,7 @@ static int ad5706r_read_raw(struct iio_dev *indio_dev,
 		*val = reg_val;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
-		*val = st->enable;
+		*val = gpiod_get_value_cansleep(st->en_gpio);
 		return IIO_VAL_INT;
 	default:
 		return -EINVAL;
@@ -50,6 +53,7 @@ static int ad5706r_write_raw(struct iio_dev *indio_dev,
 	case IIO_CHAN_INFO_RAW:
 		return 0;
 	case IIO_CHAN_INFO_ENABLE:
+		gpiod_set_value_cansleep(st->en_gpio, val);
 		st->enable = val;
 		return 0;
 	default:
@@ -112,6 +116,11 @@ static int ad5706r_probe(struct spi_device *spi)
 	if (IS_ERR(st->regmap))
 		return dev_err_probe(&spi->dev, PTR_ERR(st->regmap),
 				     "Failed to init regmap\n");
+
+	st->en_gpio = devm_gpiod_get_optional(&spi->dev, "enable", GPIOD_OUT_HIGH);
+	if (IS_ERR(st->en_gpio))
+		return dev_err_probe(&spi->dev, PTR_ERR(st->en_gpio),
+				     "Failed to get enable GPIO\n");
 
 	indio_dev->name = "ad5706r";
 	indio_dev->info = &ad5706r_info;

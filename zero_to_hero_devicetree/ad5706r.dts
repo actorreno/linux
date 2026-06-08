@@ -1,6 +1,7 @@
 /dts-v1/;
 /plugin/;
 
+
 / {
         compatible = "raspberrypi,4-model-b", "brcm,bcm2711";
 };
@@ -19,5 +20,8 @@
 		compatible = "adi,ad5706r";
 		reg = <0>;
 		spi-max-frequency = <10000000>;
+
+		/* Pin 7 (GPIO4) for OUT_EN control */
+		enable-gpios = <&gpio 4 0>;
 	};
 };
